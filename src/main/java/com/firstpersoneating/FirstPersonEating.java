@@ -10,6 +10,7 @@ import net.neoforged.neoforge.common.NeoForge;
 @Mod(value = FirstPersonEating.MODID, dist = Dist.CLIENT)
 public class FirstPersonEating {
     public static final String MODID = "firstpersoneating";
+    static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("FPE-debug");
 
     public FirstPersonEating(ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);

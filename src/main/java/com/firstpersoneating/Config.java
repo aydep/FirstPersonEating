@@ -10,7 +10,11 @@ public class Config {
 
     private static final ModConfigSpec.ConfigValue<List<? extends String>> ITEMS = BUILDER
             .comment("Items that force first person while being used. Item id or 'namespace:*'.")
-            .defineListAllowEmpty("items", List.of("kaleidoscopecookery:*"), () -> "modid:item", o -> o instanceof String);
+            .defineListAllowEmpty("items", List.of("kaleidoscope_cookery:*"), () -> "modid:item", o -> o instanceof String);
+
+    private static final ModConfigSpec.BooleanValue DEBUG = BUILDER
+            .comment("Log camera/animation state transitions (prefix FPE-debug) to latest.log.")
+            .define("debug", false);
 
     static final ModConfigSpec SPEC = BUILDER.build();
 
@@ -21,5 +25,11 @@ public class Config {
             }
         }
         return false;
+    }
+
+    static void debug(String format, Object... args) {
+        if (SPEC.isLoaded() && DEBUG.get()) {
+            FirstPersonEating.LOGGER.info(format, args);
+        }
     }
 }
