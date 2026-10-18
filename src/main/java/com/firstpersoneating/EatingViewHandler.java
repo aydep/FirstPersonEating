@@ -9,6 +9,7 @@ import io.github.memorytoame.immersiveeating.neoforge.common.content.definition.
 import io.github.memorytoame.immersiveeating.neoforge.utils.AnimationUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
@@ -27,6 +28,7 @@ public class EatingViewHandler {
     private boolean zoomingIn;
     private int zoomTicks;
     private int replayTicks;
+    private boolean holdUseKey;
     private boolean needZero;
     private int zoomOutTicks;
     private int inactiveTicks;
@@ -47,15 +49,25 @@ public class EatingViewHandler {
         if (replayTicks > 0) {
             // Immersive Eating can silently refuse a start (swing/re-equip cooldown, block-latch flags that only reset on release),
             // so pulse the key until it reports an animation instead of replaying a single press.
-            if (AnimationUtils.isAnimationLocked() || AnimationUtils.isAnimationRequestPending()) {
+            boolean started = AnimationUtils.isAnimationLocked() || AnimationUtils.isAnimationRequestPending() || mc.player.isUsingItem();
+            if (started) {
                 Config.debug("replay ok with {} ticks left", replayTicks);
                 replayTicks = 0;
+                holdUseKey = isVanillaUse(mc);
             } else {
                 replayTicks--;
             }
-            mc.options.keyUse.setDown(replayTicks % 2 == 1);
+            mc.options.keyUse.setDown(started ? holdUseKey : replayTicks % 2 == 1);
+        } else if (holdUseKey) {
+            // Vanilla eating stops when the use key is released, so keep it down for the player: one click eats, another click cancels.
+            if (!mc.player.isUsingItem() || mc.options.keyUse.consumeClick()) {
+                holdUseKey = false;
+                mc.options.keyUse.setDown(false);
+            } else {
+                mc.options.keyUse.setDown(true);
+            }
         }
-        boolean wants = wantsFirstPerson(mc);
+        boolean wants = wantsFirstPerson(mc, saved == null || zoomingIn);
         if (zoomingIn) {
             Config.debug("zoom tick {} offsetLen={} screen={} holdsFood={} hand={} locked={} pending={} using={}", zoomTicks, IShoulderSurfing.getInstance().getCamera().getOffset().length(), mc.screen, holdsFood(mc), mc.player.getMainHandItem(), AnimationUtils.isAnimationLocked(), AnimationUtils.isAnimationRequestPending(), mc.player.isUsingItem());
             if (mc.screen != null || !holdsFood(mc)) { // aborted: Shoulder Surfing glides back out by itself
@@ -73,7 +85,8 @@ public class EatingViewHandler {
             }
             return;
         }
-        boolean active = wants || AnimationUtils.isAnimationLocked() || AnimationUtils.isAnimationRequestPending();
+        boolean active = wants || AnimationUtils.isAnimationLocked() || AnimationUtils.isAnimationRequestPending()
+                || mc.player.isUsingItem() && holdsFood(mc);
         Perspective current = Perspective.current();
         if (saved == null) {
             if (active && current != Perspective.FIRST_PERSON) {
@@ -115,6 +128,7 @@ public class EatingViewHandler {
         ZoomPlugin.holdFirstPerson = false;
         ZoomPlugin.zoomingOut = needZero = false;
         replayTicks = 0;
+        holdUseKey = false;
         saved = null;
     }
 
@@ -152,20 +166,30 @@ public class EatingViewHandler {
     }
 
     // Mirrors when Immersive Eating starts a right-click animation: use key held, no screen, not aiming at a block.
-    private static boolean wantsFirstPerson(Minecraft mc) {
+    private static boolean wantsFirstPerson(Minecraft mc, boolean swallowClicks) {
         if (mc.screen != null || (mc.hitResult != null && mc.hitResult.getType() == HitResult.Type.BLOCK) || !holdsFood(mc)) {
             return false;
         }
-        // A click shorter than a tick is never "down" when we look, so also count queued presses.
+        // A click shorter than a tick is never "down" when we look, so also count queued presses. Only swallow them while
+        // starting, otherwise vanilla never sees the click that should eat the next item.
         boolean clicked = false;
-        while (mc.options.keyUse.consumeClick()) {
+        while (swallowClicks && mc.options.keyUse.consumeClick()) {
             clicked = true;
         }
         return clicked || mc.options.keyUse.isDown();
     }
 
+    // Immersive Eating's own foods, plus anything edible that merely uses vanilla eating (e.g. foods animated by resource packs).
     private static boolean holdsFood(Minecraft mc) {
-        var item = mc.player.getMainHandItem().getItem();
-        return FoodDefinitionManager.init_ItemList.contains(item) && Config.matches(BuiltInRegistries.ITEM.getKey(item));
+        var stack = mc.player.getMainHandItem();
+        if (!Config.matches(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+            return false;
+        }
+        UseAnim use = stack.getUseAnimation();
+        return FoodDefinitionManager.init_ItemList.contains(stack.getItem()) || use == UseAnim.EAT || use == UseAnim.DRINK;
+    }
+
+    private static boolean isVanillaUse(Minecraft mc) {
+        return mc.player.isUsingItem() && !FoodDefinitionManager.init_ItemList.contains(mc.player.getUseItem().getItem());
     }
 }

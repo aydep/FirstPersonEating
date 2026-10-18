@@ -23,7 +23,7 @@ items = ["kaleidoscope_cookery:*"]
 debug = false
 ```
 
-Only items that Immersive Eating itself animates are affected; this list narrows that further.
+Applies to Immersive Eating's animated dishes and to any other edible/drinkable item in the list (for example foods animated by resource packs such as Gardenia's Kaleidoscope Punchy addon). For those, one click eats (the mod holds the use key for you) and a second click cancels.
 
 ## Building
 
@@ -37,6 +37,7 @@ The jar is written to `build/libs/`.
 
 ## Known limits
 
+- Clicking while aiming at a block does not trigger the camera switch (so chests and crafting tables still open normally); the food is still eaten in the current view.
 - Transition speed follows Shoulder Surfing's `camera_transition_speed_multiplier`; there is no separate setting.
 - The zoom-out resets private Shoulder Surfing camera fields via reflection (checked against 5.2.0); if they change, it falls back to an instant switch.
 - Trigger conditions mirror Immersive Eating 1.5.2's internals (use key held, no screen open, not aiming at a block) and may need updating for newer versions.
